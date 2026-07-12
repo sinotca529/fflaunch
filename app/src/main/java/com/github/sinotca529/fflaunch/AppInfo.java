@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable;
 
 public class AppInfo {
     private final String appName;
+    private final String normalizedName;
     private final String packageName;
     private final ResolveInfo resolveInfo;
     private final PackageManager packageManager;
@@ -13,6 +14,7 @@ public class AppInfo {
 
     public AppInfo(ResolveInfo resolveInfo, PackageManager packageManager) {
         this.appName = resolveInfo.loadLabel(packageManager).toString();
+        this.normalizedName = StringUtil.regularize(appName);
         this.packageName = resolveInfo.activityInfo.packageName;
         this.resolveInfo = resolveInfo;
         this.packageManager = packageManager;
@@ -20,6 +22,10 @@ public class AppInfo {
 
     public String getAppName() {
         return appName;
+    }
+
+    public String getNormalizedName() {
+        return normalizedName;
     }
 
     // アイコンは初回アクセス時に読み込んでキャッシュする (起動時に全件読み込むと重いため)

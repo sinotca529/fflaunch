@@ -1,7 +1,6 @@
 package com.github.sinotca529.fflaunch;
 
 import android.content.Context;
-import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,8 +37,17 @@ public class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHold
         holder.appName.setText(appInfo.getAppName());
         holder.appIcon.setImageDrawable(appInfo.getAppIcon());
 
+        // 登録済みの別名を小さく併記する (何と登録したか思い出せるように)
+        final var aliases = new AliasManager(context).getAliases(appInfo.getPackageName());
+        if (aliases.isEmpty()) {
+            holder.appAlias.setVisibility(View.GONE);
+        } else {
+            holder.appAlias.setVisibility(View.VISIBLE);
+            holder.appAlias.setText(String.join("、", aliases));
+        }
+
         holder.itemView.setOnLongClickListener(v -> {
-            showAliasDialog(appInfo.getPackageName());
+            showAliasDialog(appInfo);
             return true;
         });
 
@@ -51,6 +59,11 @@ public class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHold
     @Override
     public int getItemCount() {
         return appList.size();
+    }
+
+    // 現在表示中の先頭候補 (Enter キーでの起動対象)
+    public AppInfo getFirstApp() {
+        return appList.isEmpty() ? null : appList.get(0);
     }
 
     public void updateAppList(List<AppInfo> newList) {
@@ -87,21 +100,24 @@ public class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHold
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView appName;
+        TextView appAlias;
         ImageView appIcon;
 
         public ViewHolder(View itemView) {
             super(itemView);
             appName = itemView.findViewById(R.id.app_name);
+            appAlias = itemView.findViewById(R.id.app_alias);
             appIcon = itemView.findViewById(R.id.app_icon);
         }
     }
 
-    private void showAliasDialog(String packageName) {
-        final var dialogFragment = AliasDialogFragment.newInstance(packageName);
+    private void showAliasDialog(AppInfo appInfo) {
+        final var dialogFragment =
+            AliasDialogFragment.newInstance(appInfo.getPackageName(), appInfo.getAppName());
         dialogFragment.show(((AppCompatActivity) context).getSupportFragmentManager(), "aliasDialog");
     }
 
-    private void launchApp(String packageName) {
+    public void launchApp(String packageName) {
          final var launchIntent = context
             .getPackageManager()
             .getLaunchIntentForPackage(packageName);

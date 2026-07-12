@@ -4,12 +4,18 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
 public class AliasManager {
+
+    // 毎回 SharedPreferences から読んで Gson でパースすると検索のたびに重いので、
+    // メモリ上にキャッシュする。書き換えは addAlias/removeAlias 経由でのみ行うこと。
+    private static HashMap<String, List<String>> cache = null;
 
     private final SharedPreferences sharedPreferences;
 
@@ -17,12 +23,19 @@ public class AliasManager {
         sharedPreferences = context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE);
     }
 
+    // 返り値はキャッシュそのものなので、呼び出し側で書き換えないこと
     public HashMap<String, List<String>> loadAliasMap() {
-        String json = sharedPreferences.getString("app_alias", "{}");
-        return (new Gson()).fromJson(json, HashMap.class);
+        if (cache == null) {
+            String json = sharedPreferences.getString("app_alias", "{}");
+            Type type = new TypeToken<HashMap<String, List<String>>>() {}.getType();
+            cache = new Gson().fromJson(json, type);
+            if (cache == null) cache = new HashMap<>();
+        }
+        return cache;
     }
 
     public void saveAliasMap(HashMap<String, List<String>> map) {
+        cache = map;
         String json = (new Gson()).toJson(map);
         sharedPreferences.edit().putString("app_alias", json).apply();
     }
