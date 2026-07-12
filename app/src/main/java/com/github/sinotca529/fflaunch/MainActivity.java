@@ -3,8 +3,9 @@ package com.github.sinotca529.fflaunch;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.EditText;
@@ -15,21 +16,24 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import me.xdrop.fuzzywuzzy.FuzzySearch;
 
 public class MainActivity extends AppCompatActivity {
-    private List<AppInfo> appList;
+    private List<AppInfo> appList = new ArrayList<>();
     private AppListAdapter appAdapter;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        appList = getInstalledApps();
-        appAdapter = new AppListAdapter(new ArrayList<>(appList), this);
-
         setContentView(R.layout.activity_main);
+
+        appAdapter = new AppListAdapter(new ArrayList<>(), this);
 
         RecyclerView recyclerView = findViewById(R.id.app_list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -53,6 +57,29 @@ public class MainActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {
             }
         }));
+
+        // アプリ一覧の取得は重いのでバックグラウンドで行い、UI は先に表示する
+        executor.execute(() -> {
+            final var apps = getInstalledApps();
+
+            mainHandler.post(() -> {
+                appList = apps;
+                final var query = searchBar.getText().toString();
+                appAdapter.updateAppList(query.trim().isEmpty() ? apps : searchApps(query));
+                recyclerView.scrollToPosition(0);
+            });
+
+            // スクロール時のカクつきを防ぐため、アイコンをキャッシュへ先読みしておく
+            for (final var app : apps) {
+                app.getAppIcon();
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
     }
 
     private List<AppInfo> searchApps(String query) {
@@ -99,10 +126,7 @@ public class MainActivity extends AppCompatActivity {
         List<AppInfo> appInfoList = new ArrayList<>();
 
         for (ResolveInfo resolveInfo : resolveInfos) {
-            String name = resolveInfo.loadLabel(pm).toString();
-            Drawable icon = resolveInfo.loadIcon(pm);
-            String packageName = resolveInfo.activityInfo.packageName;
-            appInfoList.add(new AppInfo(name, icon, packageName));
+            appInfoList.add(new AppInfo(resolveInfo, pm));
         }
 
         return appInfoList;
